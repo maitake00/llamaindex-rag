@@ -1,0 +1,8 @@
+# LlamaIndex 日英RAG - 依存(軽量: torch等の重い依存は入れない)
+# 生成=Ollama, 埋め込み=Ollama(bge-m3), リランク=Xinference は全部HTTP経由で使う
+llama-index-core>=0.12
+llama-index-llms-ollama>=0.4
+llama-index-embeddings-ollama>=0.4
+llama-index-vector-stores-chroma>=0.4
+chromadb>=0.5
+requests>=2.31

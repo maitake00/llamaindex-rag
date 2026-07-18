@@ -1,0 +1,11 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# ベクトルDB(再生成できるのでコミットしない)
+chroma_db/
+
+# 取り込む文書(内容は各自のものなのでコミットしない。フォルダは残す)
+docs/*
+!docs/.gitkeep
