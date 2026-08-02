@@ -25,6 +25,23 @@ THINK = os.getenv("THINK", "0") == "1"
 #     思考ONは考える余地が要るので、明示指定が無ければ自動で8192に拡張(OFFは4096) ---
 NUM_CTX = int(os.getenv("NUM_CTX", "8192" if THINK else "4096"))
 
+# --- Web検索(Tavily)。LLMが必要と判断したときだけ呼ばれる ---
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+WEB_SEARCH_ENABLED = os.getenv("WEB_SEARCH_ENABLED", "1") == "1" and bool(TAVILY_API_KEY)
+WEB_TOP_K = int(os.getenv("WEB_TOP_K", "8"))
+WEB_RERANK_TOP_N = int(os.getenv("WEB_RERANK_TOP_N", "4"))
+WEB_TIMEOUT = float(os.getenv("WEB_TIMEOUT", "30"))
+
+# --- エージェント(ツール呼び出し)の暴走防止 ---
+AGENT_MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "3"))
+
+# 1手目でツールが呼ばれなかったとき、資料検索を強制するか(従来RAGの確実性を担保)
+FORCE_DOC_SEARCH = os.getenv("FORCE_DOC_SEARCH", "1") == "1"
+
+# --- エージェント時の文脈長。ツール結果を積むため4096では足りない。
+#     GPUから溢れる場合は 6144 まで下げて調整する。 ---
+AGENT_NUM_CTX = int(os.getenv("AGENT_NUM_CTX", "8192"))
+
 # --- 保存先 ---
 DOCS_DIR = os.getenv("DOCS_DIR", "docs")            # 取り込む文書を置くフォルダ
 CHROMA_DIR = os.getenv("CHROMA_DIR", "chroma_db")   # ベクトルDBの永続化先
