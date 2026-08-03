@@ -17,3 +17,4 @@ python-dotenv>=1.0
 # 高精度: paddleocr paddlepaddle   /   確実・軽量: pytesseract pillow(+ apt: tesseract-ocr tesseract-ocr-jpn)
 pypdf>=4.0
 llama-index-readers-file>=0.4
+faster-whisper>=1.0

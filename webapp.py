@@ -156,6 +156,57 @@ def api_health_json(authorization: Optional[str] = Header(None), key: str = ""):
     return health_check.status()
 
 
+@router.post("/api/stt")
+async def api_stt(
+    file: UploadFile = File(...),
+    authorization: Optional[str] = Header(None), key: str = "",
+):
+    """音声を文字起こしして返す。"""
+    _auth(authorization, key)
+    import stt
+    data = await file.read()
+    if not data:
+        return {"text": "", "error": "音声が空です"}
+    try:
+        return {"text": stt.transcribe(data, file.filename or "audio.webm")}
+    except Exception as e:
+        return {"text": "", "error": f"認識に失敗しました: {e}"}
+
+
+@router.post("/api/tts")
+def api_tts(
+    text: str = Form(...), speaker: int = Form(0),
+    authorization: Optional[str] = Header(None), key: str = "",
+):
+    """テキストを読み上げ音声(wav)にして返す。"""
+    _auth(authorization, key)
+    import tts
+    try:
+        return Response(tts.synth(text, speaker), media_type="audio/wav")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"読み上げに失敗しました: {e}")
+
+
+@router.get("/api/speakers")
+def api_speakers(authorization: Optional[str] = Header(None), key: str = ""):
+    _auth(authorization, key)
+    import tts
+    try:
+        return tts.speakers()
+    except Exception:
+        return []
+
+
+@router.get("/api/me")
+def api_me(
+    authorization: Optional[str] = Header(None), key: str = "",
+    x_authentik_username: Optional[str] = Header(None),
+):
+    """認証済みかを返す。プロキシ経由なら利用者名も返す。"""
+    _auth(authorization, key)
+    return {"authenticated": True, "user": x_authentik_username or "local"}
+
+
 # ---------- PWA ----------
 
 @router.get("/manifest.json")

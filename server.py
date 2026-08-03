@@ -49,6 +49,20 @@ MODEL_THINK = "secretary-think"
 
 app = FastAPI(title="RAG OpenAI-compatible API")
 
+# ---- リバースプロキシ(Caddy)経由の認証済みリクエストを許可する ----
+# authentik で認証が通った時だけ Caddy が X-Proxy-Secret を付ける。
+# 一致したら内部的に APIキーを補って通す = ブラウザ側でキー入力が不要になる。
+PROXY_SECRET = os.getenv("PROXY_SECRET", "")
+
+
+@app.middleware("http")
+async def proxy_auth(request: Request, call_next):
+    if PROXY_SECRET and request.headers.get("x-proxy-secret") == PROXY_SECRET:
+        headers = [(k, v) for k, v in request.scope["headers"] if k != b"authorization"]
+        headers.append((b"authorization", f"Bearer {API_KEY}".encode()))
+        request.scope["headers"] = headers
+    return await call_next(request)
+
 # 統合Webアプリ(チャット/資料/タスク/予定)を /app に載せる
 from webapp import router as webapp_router
 app.include_router(webapp_router)

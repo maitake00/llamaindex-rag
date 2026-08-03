@@ -9,6 +9,7 @@ from llama_index.core.tools import FunctionTool
 import config
 from web_search import search_web
 
+import homelab_tool
 import ingest_lib
 import todo_tool
 
@@ -43,6 +44,9 @@ SYSTEM_PROMPT = """あなたは私専属の秘書です。日本語で、結論�
 - 返信を書く → gmail_draft で下書きを作る。送信はできないので、下書きを作ったことを伝える。
 - やること・タスク・ToDoの追加、確認、完了 → todo を使う。
   追加は action='add'、一覧は action='list'、完了は action='done' と task_id。
+- サーバーやコンテナの状態、ログ、再起動、ディスクやGPUの使用状況 → homelab を使う。
+  一覧は action='status'、リソースは action='resources'、
+  ログは action='logs' と container、再起動は action='restart' と container。
 - 最新情報、時事、一般的な調べもの、資料に無かったこと → search_web を使う。
 - 「このページを資料に追加して」「保存して」とURLを渡されたら → ingest_url を使う。
   (search_web はその場限り、ingest_url は資料として永続保存する)
@@ -92,6 +96,7 @@ def build_tools(index, reranker) -> List[FunctionTool]:
         tools.append(FunctionTool.from_defaults(fn=gmail_tool.gmail_draft))
     tools.append(FunctionTool.from_defaults(fn=todo_tool.todo))
     tools.append(FunctionTool.from_defaults(fn=ingest_lib.ingest_url))
+    tools.append(FunctionTool.from_defaults(fn=homelab_tool.homelab))
     return tools
 
 

@@ -5,7 +5,7 @@ import { ChatInputArea, ChatItem } from '@lobehub/ui/chat'
 import { App as AntApp, Button, Input, Select, Upload, theme as antdTheme } from 'antd'
 import {
   Calendar, CheckSquare, FileText, LogOut, Menu, MessageSquare,
-  Moon, Plus, RefreshCw, Copy, SendHorizontal, Trash2, Sun, Upload as UploadIcon,
+  Mic, Moon, Plus, RefreshCw, Copy, SendHorizontal, Square, Trash2, Sun, Upload as UploadIcon, Volume2,
 } from 'lucide-react'
 
 // Glanceのテーマ(HSL)をHEXに変換した配色。ダッシュボードに埋め込んだ時に馴染ませる。
@@ -119,6 +119,58 @@ function Inner({ apiKey, dark, setDark }: { apiKey: string; dark: boolean; setDa
     const c: Conv = { id: convId, title, msgs: final }
     setConvs(p => p.map(x => x.id === convId ? c : x))
     persist(c); setStream(''); setBusy(false)
+  }
+
+  // ---- 音声入力(録音 → Whisperで文字起こし) ----
+  const recRef = useRef<MediaRecorder | null>(null)
+  const [rec, setRec] = useState(false)
+
+  async function startRec() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,   // ノイズ対策: エコー除去
+          noiseSuppression: true,   // ノイズ対策: 環境音抑制
+          autoGainControl: true,    // 小さい声を持ち上げる
+          channelCount: 1,
+        },
+      })
+      const mr = new MediaRecorder(stream)
+      const chunks: BlobPart[] = []
+      mr.ondataavailable = e => chunks.push(e.data)
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunks, { type: 'audio/webm' })
+        if (blob.size < 1000) { setRec(false); return }
+        setInput('(認識中...)')
+        const fd = new FormData(); fd.append('file', blob, 'audio.webm')
+        try {
+          const r = await fetch('/api/stt', { method: 'POST', headers: H, body: fd })
+          const j = await r.json()
+          setInput(j.text || '')
+          if (j.error) message.error(j.error)
+        } catch (e) { setInput(''); message.error('認識に失敗しました') }
+        setRec(false)
+      }
+      recRef.current = mr
+      mr.start()
+      setRec(true)
+    } catch (e) {
+      message.error('マイクを使用できません(権限を確認してください)')
+    }
+  }
+
+  function stopRec() { recRef.current?.stop() }
+
+  // ---- 読み上げ(VOICEVOX) ----
+  async function speak(text: string) {
+    try {
+      const fd = new FormData(); fd.append('text', text)
+      const r = await fetch('/api/tts', { method: 'POST', headers: H, body: fd })
+      if (!r.ok) { message.error('読み上げに失敗しました'); return }
+      const url = URL.createObjectURL(await r.blob())
+      const a = new Audio(url); a.onended = () => URL.revokeObjectURL(url); a.play()
+    } catch { message.error('読み上げに失敗しました') }
   }
 
   function send() {
@@ -247,15 +299,17 @@ function Inner({ apiKey, dark, setDark }: { apiKey: string; dark: boolean; setDa
                   avatar={m.role === 'user'
                     ? { avatar: '🧑', title: '私', backgroundColor: '#1677ff' }
                     : { avatar: '🤖', title: '秘書' }}
-                  message={<Markdown>{m.content}</Markdown>}
+                  message={m.content}
                   placement={m.role === 'user' ? 'right' : 'left'}
                   primary={m.role === 'user'}
                   actions={
                     <Flexbox horizontal gap={2}>
                       <ActionIcon icon={Copy} size="small" title="コピー"
                         onClick={() => { navigator.clipboard.writeText(m.content); message.success('コピーしました') }} />
-                      {m.role === 'assistant' &&
-                        <ActionIcon icon={RefreshCw} size="small" title="再生成" onClick={() => regen(i)} />}
+                      {m.role === 'assistant' && <>
+                        <ActionIcon icon={Volume2} size="small" title="読み上げ" onClick={() => speak(m.content)} />
+                        <ActionIcon icon={RefreshCw} size="small" title="再生成" onClick={() => regen(i)} />
+                      </>}
                       <ActionIcon icon={Trash2} size="small" title="削除" onClick={() => drop(i)} />
                     </Flexbox>
                   }
@@ -263,7 +317,7 @@ function Inner({ apiKey, dark, setDark }: { apiKey: string; dark: boolean; setDa
               ))}
               {busy && (
                 <ChatItem avatar={{ avatar: '🤖', title: '秘書' }} loading={!stream}
-                  message={<Markdown>{stream || '...'}</Markdown>} placement="left" />
+                  message={stream || '...'} placement="left" />
               )}
               <div ref={bottom} />
             </div>
@@ -332,10 +386,21 @@ function Inner({ apiKey, dark, setDark }: { apiKey: string; dark: boolean; setDa
                   placeholder="秘書に聞く..."
                   autoSize={{ minRows: 1, maxRows: 6 }}
                 />
-                <Flexbox horizontal align="center" justify="flex-end" gap={8} style={{ marginTop: 6 }}>
-                  <span style={{ fontSize: 11, opacity: .5 }}>Enterで送信 / Shift+Enterで改行</span>
-                  <Button type="primary" loading={busy} onClick={send}
-                          icon={<SendHorizontal size={15} />} />
+                <Flexbox horizontal align="center" gap={8} style={{ marginTop: 6 }}>
+                  <Button
+                    danger={rec}
+                    type={rec ? 'primary' : 'default'}
+                    icon={rec ? <Square size={13} /> : <Mic size={15} />}
+                    onClick={() => (rec ? stopRec() : startRec())}
+                    title={rec ? '録音を止めて文字起こし' : '音声で入力'}
+                  />
+                  <span style={{ fontSize: 11, opacity: .5 }}>
+                    {rec ? '録音中... もう一度押すと文字起こし' : 'Enterで送信 / Shift+Enterで改行'}
+                  </span>
+                  <span style={{ marginLeft: 'auto' }}>
+                    <Button type="primary" loading={busy} onClick={send}
+                            icon={<SendHorizontal size={15} />} />
+                  </span>
                 </Flexbox>
               </div>
             </div>
@@ -368,6 +433,13 @@ export default function App() {
   const [apiKey, setApiKey] = useState(
     localStorage.getItem(KEY_STORE) || new URLSearchParams(location.search).get('key') || ''
   )
+  // プロキシ(authentik)で認証済みならキー入力を省略する
+  const [checkAuth, setCheckAuth] = useState(true)
+  useEffect(() => {
+    fetch('/api/me')
+      .then(r => { if (r.ok) setApiKey(k => k || 'proxy') })
+      .finally(() => setCheckAuth(false))
+  }, [])
   const [dark, setDark] = useState(localStorage.getItem('theme') !== 'light')
 
   useEffect(() => {
@@ -397,7 +469,9 @@ export default function App() {
         } : { colorPrimary: GL.primary, borderRadius: 8 },
       }}>
       <AntApp>
-        {apiKey ? <Inner apiKey={apiKey} dark={dark} setDark={setDark} /> : <Login onDone={setApiKey} />}
+        {checkAuth ? null
+          : apiKey ? <Inner apiKey={apiKey} dark={dark} setDark={setDark} />
+          : <Login onDone={setApiKey} />}
       </AntApp>
     </ThemeProvider>
   )
