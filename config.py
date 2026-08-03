@@ -33,7 +33,7 @@ WEB_RERANK_TOP_N = int(os.getenv("WEB_RERANK_TOP_N", "4"))
 WEB_TIMEOUT = float(os.getenv("WEB_TIMEOUT", "30"))
 
 # --- エージェント(ツール呼び出し)の暴走防止 ---
-AGENT_MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "3"))
+AGENT_MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "4"))
 
 # 1手目でツールが呼ばれなかったとき、資料検索を強制するか(従来RAGの確実性を担保)
 FORCE_DOC_SEARCH = os.getenv("FORCE_DOC_SEARCH", "1") == "1"

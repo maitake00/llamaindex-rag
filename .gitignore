@@ -1,3 +1,6 @@
+# 秘密情報(APIキー)
+.env
+
 # Python
 .venv/
 __pycache__/
@@ -6,6 +9,15 @@ __pycache__/
 # ベクトルDB(再生成できるのでコミットしない)
 chroma_db/
 
-# 取り込む文書(内容は各自のものなのでコミットしない。フォルダは残す)
+# 取り込む文書・画像(内容は各自のものなのでコミットしない。フォルダは残す)
 docs/*
 !docs/.gitkeep
+images/*
+!images/.gitkeep
+token_*.json
+
+# Google認証(秘密情報)
+credentials.json
+
+# ToDoデータベース(個人データ)
+tasks.db
