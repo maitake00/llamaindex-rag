@@ -21,3 +21,8 @@ credentials.json
 
 # ToDoデータベース(個人データ)
 tasks.db
+
+# 会話履歴(個人データ)
+chats.db
+webui/node_modules/
+webui/dist/

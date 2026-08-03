@@ -49,6 +49,17 @@ MODEL_THINK = "secretary-think"
 
 app = FastAPI(title="RAG OpenAI-compatible API")
 
+# 統合Webアプリ(チャット/資料/タスク/予定)を /app に載せる
+from webapp import router as webapp_router
+app.include_router(webapp_router)
+
+# React製のUI(webui/ をビルドした成果物)を /app で配信
+import os as _os
+from fastapi.staticfiles import StaticFiles
+_dist = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "webui_dist")
+if _os.path.isdir(_dist):
+    app.mount("/app", StaticFiles(directory=_dist, html=True), name="app")
+
 # 起動時に一度だけ準備する重い部品
 _index = None
 _reranker = None

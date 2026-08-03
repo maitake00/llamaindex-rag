@@ -94,3 +94,19 @@ def due_soon(hours: int = 24):
         ).fetchall()
     finally:
         con.close()
+
+
+def list_open():
+    """未完了タスクを構造化して返す(ダッシュボード表示用)。"""
+    con = _conn()
+    try:
+        rows = con.execute(
+            "SELECT id, title, due FROM todos WHERE done=0 "
+            "ORDER BY (due IS NULL), due ASC"
+        ).fetchall()
+        return [
+            {"id": r[0], "title": r[1], "due": r[2] or "", "due_text": _fmt_due(r[2] or "")}
+            for r in rows
+        ]
+    finally:
+        con.close()

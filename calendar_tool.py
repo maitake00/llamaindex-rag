@@ -74,3 +74,31 @@ def calendar_add(title: str, start: str, end: str = "", location: str = "") -> s
         return f"予定の追加に失敗しました: {e}"
 
     return f"予定を追加しました: {_fmt(s.isoformat())} {title}\n{ev.get('htmlLink', '')}"
+
+
+def list_events(days: int = 7):
+    """予定を構造化して返す(ダッシュボード表示用)。"""
+    try:
+        svc = google_auth.calendar_service()
+        now = datetime.now(JST)
+        res = svc.events().list(
+            calendarId=CAL_ID,
+            timeMin=now.isoformat(),
+            timeMax=(now + timedelta(days=max(1, days))).isoformat(),
+            singleEvents=True, orderBy="startTime", maxResults=30,
+        ).execute()
+    except Exception:
+        return []
+
+    out = []
+    for ev in res.get("items", []):
+        start = ev.get("start", {})
+        raw = start.get("dateTime") or start.get("date", "")
+        out.append({
+            "title": ev.get("summary", "(件名なし)"),
+            "start": raw,
+            "start_text": _fmt(raw),
+            "location": ev.get("location", ""),
+            "url": ev.get("htmlLink", ""),
+        })
+    return out

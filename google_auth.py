@@ -22,6 +22,8 @@ SCOPES = [
 ]
 
 CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS", "credentials.json")
+# 連続で認証すると前回のポートが解放されず衝突するため、変更できるようにする
+OAUTH_PORT = int(os.getenv("OAUTH_PORT", "8765"))
 
 # 使うアカウントのラベル一覧(先頭がメイン)。.env で "main,work" のように指定。
 ACCOUNTS = [a.strip() for a in os.getenv("GOOGLE_ACCOUNTS", "main").split(",") if a.strip()]
@@ -56,7 +58,7 @@ def get_credentials(account: str = "", interactive: bool = False) -> Credentials
         )
 
     flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-    creds = flow.run_local_server(port=8765, open_browser=False)
+    creds = flow.run_local_server(port=OAUTH_PORT, open_browser=False)
     with open(path, "w") as f:
         f.write(creds.to_json())
     return creds
