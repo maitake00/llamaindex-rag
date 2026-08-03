@@ -25,7 +25,8 @@ from dotenv import load_dotenv
 
 load_dotenv()  # .env を読み込む(API_KEY など)
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -185,3 +186,78 @@ async def chat_completions(req: ChatReq, authorization: Optional[str] = Header(N
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ---------- 資料アップロード画面 ----------
+# スマホ/PCのブラウザから写真・PDF・テキストを投げ込むと、そのままRAGに登録される。
+# 認証は URL の ?key=<APIキー>(ブラウザからはBearerヘッダを付けられないため)。
+
+UPLOAD_HTML = """<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>資料の追加</title>
+<style>
+ body{font-family:system-ui,sans-serif;margin:0;padding:24px;background:#f6f7f9;color:#111}
+ .card{max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;
+       box-shadow:0 1px 4px rgba(0,0,0,.08)}
+ h1{font-size:20px;margin:0 0 4px} p.sub{color:#666;font-size:13px;margin:0 0 20px}
+ input[type=file]{width:100%;padding:14px;border:2px dashed #cbd5e1;border-radius:8px;
+                  background:#fafbfc;margin-bottom:16px}
+ button{width:100%;padding:14px;font-size:16px;border:0;border-radius:8px;
+        background:#2563eb;color:#fff;font-weight:600}
+ button:disabled{background:#94a3b8}
+ .result{margin-top:20px;padding:14px;border-radius:8px;background:#f1f5f9;
+         font-size:14px;white-space:pre-wrap;line-height:1.6}
+</style></head><body>
+<div class="card">
+  <h1>資料の追加</h1>
+  <p class="sub">画像・PDF・テキストを選ぶと、秘書の資料として登録されます。</p>
+  <form id="f" method="post" enctype="multipart/form-data">
+    <input type="file" name="files" multiple required>
+    <button type="submit" id="b">登録する</button>
+  </form>
+  <div class="result" id="r" style="display:none"></div>
+</div>
+<script>
+const f=document.getElementById('f'),b=document.getElementById('b'),r=document.getElementById('r');
+f.onsubmit=async e=>{
+  e.preventDefault();
+  b.disabled=true; b.textContent='処理中...(画像は1分ほどかかります)';
+  r.style.display='block'; r.textContent='アップロード中...';
+  try{
+    const res=await fetch(location.href,{method:'POST',body:new FormData(f)});
+    r.textContent=await res.text();
+  }catch(err){ r.textContent='エラー: '+err; }
+  b.disabled=false; b.textContent='登録する';
+};
+</script></body></html>"""
+
+
+def _check_key(key: str):
+    if key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid key")
+
+
+@app.get("/upload", response_class=HTMLResponse)
+def upload_form(key: str = ""):
+    _check_key(key)
+    return UPLOAD_HTML
+
+
+@app.post("/upload")
+async def upload_files(key: str = "", files: List[UploadFile] = File(...)):
+    _check_key(key)
+    import ingest_lib
+
+    lines = []
+    for uf in files:
+        try:
+            data = await uf.read()
+            if not data:
+                lines.append(f"{uf.filename}: 空のファイルです")
+                continue
+            path = ingest_lib.save_upload(uf.filename, data)
+            lines.append(ingest_lib.ingest_file(path))
+        except Exception as e:
+            lines.append(f"{uf.filename}: 失敗({e})")
+    return "\n".join(lines)

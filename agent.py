@@ -9,6 +9,7 @@ from llama_index.core.tools import FunctionTool
 import config
 from web_search import search_web
 
+import ingest_lib
 import todo_tool
 
 try:
@@ -43,6 +44,8 @@ SYSTEM_PROMPT = """あなたは私専属の秘書です。日本語で、結論�
 - やること・タスク・ToDoの追加、確認、完了 → todo を使う。
   追加は action='add'、一覧は action='list'、完了は action='done' と task_id。
 - 最新情報、時事、一般的な調べもの、資料に無かったこと → search_web を使う。
+- 「このページを資料に追加して」「保存して」とURLを渡されたら → ingest_url を使う。
+  (search_web はその場限り、ingest_url は資料として永続保存する)
 - 道具を使わずに答えてよいのは、挨拶・雑談・直前の会話の単なる言い換えだけ。
 
 答え方:
@@ -88,6 +91,7 @@ def build_tools(index, reranker) -> List[FunctionTool]:
         tools.append(FunctionTool.from_defaults(fn=gmail_tool.gmail_read))
         tools.append(FunctionTool.from_defaults(fn=gmail_tool.gmail_draft))
     tools.append(FunctionTool.from_defaults(fn=todo_tool.todo))
+    tools.append(FunctionTool.from_defaults(fn=ingest_lib.ingest_url))
     return tools
 
 
