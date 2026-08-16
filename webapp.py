@@ -64,7 +64,7 @@ def api_todo_list(authorization: Optional[str] = Header(None), key: str = ""):
 
 @router.post("/api/todo")
 def api_todo_action(
-    action: str = Form(...), title: str = Form(""), task_id: int = Form(0),
+    action: str = Form(...), title: str = Form(""), task_id: str = Form(""),
     due: str = Form(""), authorization: Optional[str] = Header(None), key: str = "",
 ):
     _auth(authorization, key)
@@ -205,6 +205,29 @@ def api_me(
     """認証済みかを返す。プロキシ経由なら利用者名も返す。"""
     _auth(authorization, key)
     return {"authenticated": True, "user": x_authentik_username or "local"}
+
+
+@router.post("/api/intake")
+def api_intake(
+    app: str = Form(""), title: str = Form(""), text: str = Form(""),
+    authorization: Optional[str] = Header(None), key: str = "",
+):
+    """スマホの通知などを取り込み、必要ならタスク・予定に登録する。"""
+    _auth(authorization, key)
+    import intake
+    return intake.handle(app, title, text)
+
+
+@router.post("/api/telemetry")
+async def api_telemetry(
+    req: Request, authorization: Optional[str] = Header(None), key: str = "",
+):
+    """端末からの行動データを受け取る。{"kind": "...", "items": [...]}"""
+    _auth(authorization, key)
+    import telemetry
+    body = await req.json()
+    n = telemetry.record(body.get("kind", "unknown"), body.get("items", []))
+    return {"ok": True, "stored": n}
 
 
 # ---------- PWA ----------

@@ -19,6 +19,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/tasks",
 ]
 
 CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS", "credentials.json")
@@ -62,6 +63,10 @@ def get_credentials(account: str = "", interactive: bool = False) -> Credentials
     with open(path, "w") as f:
         f.write(creds.to_json())
     return creds
+
+
+def tasks_service(account: str = ""):
+    return build("tasks", "v1", credentials=get_credentials(account), cache_discovery=False)
 
 
 def calendar_service(account: str = ""):

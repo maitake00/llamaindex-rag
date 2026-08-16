@@ -26,3 +26,6 @@ tasks.db
 chats.db
 webui/node_modules/
 webui/dist/
+
+# 行動ログ(個人データ)
+telemetry.db

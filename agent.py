@@ -1,5 +1,6 @@
 """ツール呼び出し型エージェント。LLM自身が文書検索/Web検索/直接回答を判断する。"""
 from datetime import datetime, timedelta, timezone
+import re
 from typing import Iterator, List
 
 from llama_index.core.llms import ChatMessage, MessageRole
@@ -10,6 +11,7 @@ import config
 from web_search import search_web
 
 import homelab_tool
+import telemetry
 import ingest_lib
 import todo_tool
 
@@ -34,7 +36,8 @@ SYSTEM_PROMPT = """あなたは私専属の秘書です。日本語で、結論�
 自分の記憶から答えることは禁止です。必ず道具で調べてから答えてください。
 
 道具の使い分け:
-- 予定・スケジュール・空き時間の確認 → calendar_list を使う。
+- 予定・スケジュール・空き時間・会議など、開始時刻が決まっている用事 → calendar_list を使う。
+  作業内容そのものを聞かれた場合は calendar_list ではなく todo を使うこと。
   「今日」は days=1、「明日」は days=2、「今週」は days=7。
 - 予定を入れる・登録する → calendar_add を使う。日時は '2026-08-05T14:00' の形式。
 - 「監視」「構成」「設定」など、私の環境や資料に関する質問 → search_documents を使う。
@@ -42,8 +45,10 @@ SYSTEM_PROMPT = """あなたは私専属の秘書です。日本語で、結論�
 - メールの確認・未読の要約 → gmail_list を使う(未読は query='is:unread')。
   本文が必要なら gmail_read でIDを指定して読む。
 - 返信を書く → gmail_draft で下書きを作る。送信はできないので、下書きを作ったことを伝える。
-- やること・タスク・ToDoの追加、確認、完了 → todo を使う。
+- やること・タスク・ToDo・宿題・課題・締切のある作業 → todo を使う。
+  「今やることは?」「何をすればいい?」も todo(時間が決まっていない作業のため)。
   追加は action='add'、一覧は action='list'、完了は action='done' と task_id。
+- 自分の生活習慣、アプリの使い方、睡眠や歩数、通知の多さ → life_stats を使う。
 - サーバーやコンテナの状態、ログ、再起動、ディスクやGPUの使用状況 → homelab を使う。
   一覧は action='status'、リソースは action='resources'、
   ログは action='logs' と container、再起動は action='restart' と container。
@@ -97,7 +102,20 @@ def build_tools(index, reranker) -> List[FunctionTool]:
     tools.append(FunctionTool.from_defaults(fn=todo_tool.todo))
     tools.append(FunctionTool.from_defaults(fn=ingest_lib.ingest_url))
     tools.append(FunctionTool.from_defaults(fn=homelab_tool.homelab))
+    tools.append(FunctionTool.from_defaults(fn=telemetry.life_stats))
     return tools
+
+
+CHITCHAT = re.compile(
+    r"^(こんにちは|こんばんは|おはよう|やあ|hi|hello|ありがとう|thanks?|"
+    r"よろしく|お疲れ|おやすみ|さようなら|了解|わかった|ok|うん|はい|いいえ)"
+)
+
+
+def _is_chitchat(q: str) -> bool:
+    """挨拶や相槌は道具を使う必要がない(再指示すると誤ってツールを呼ぶため)。"""
+    t = (q or "").strip()
+    return len(t) <= 20 and bool(CHITCHAT.match(t))
 
 
 def _run_tools(llm, tools, chat_history: List[ChatMessage]) -> List[ChatMessage]:
@@ -126,7 +144,7 @@ def _run_tools(llm, tools, chat_history: List[ChatMessage]) -> List[ChatMessage]
                 return chat_history + [resp.message]
 
             # 段階1: 道具を使うよう促す(選択はモデルに任せる)
-            if not nudged:
+            if not nudged and not _is_chitchat(question):
                 nudged = True
                 print("[agent] ツール未使用のため再指示")
                 chat_history = chat_history + [
